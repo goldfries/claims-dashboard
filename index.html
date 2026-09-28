@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expense Claim Auditor</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --border: #e2e6ea;
+    --text: #1a202c;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --accent-light: #eff6ff;
+    --high: #dc2626;
+    --high-bg: #fef2f2;
+    --high-border: #fecaca;
+    --med: #d97706;
+    --med-bg: #fffbeb;
+    --med-border: #fde68a;
+    --low: #ca8a04;
+    --low-bg: #fefce8;
+    --low-border: #fef08a;
+    --clean: #16a34a;
+    --clean-bg: #f0fdf4;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+  }
+  body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.6; background: var(--bg); color: var(--text); min-height: 100vh; }
+  a { color: var(--accent); }
+
+  /* HEADER */
+  .app-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 16px; box-shadow: var(--shadow); }
+  .app-header .logo { width: 36px; height: 36px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .app-header .logo svg { width: 20px; height: 20px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .app-header h1 { font-size: 18px; font-weight: 700; color: var(--text); }
+  .app-header p { font-size: 13px; color: var(--muted); }
+
+  /* LAYOUT */
+  .container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+  section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 20px; }
+
+  /* SETTINGS */
+  .section-header { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; border-bottom: 1px solid var(--border); }
+  .section-header h2 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .section-header .toggle-icon { transition: transform 0.2s; color: var(--muted); font-size: 12px; }
+  .section-header.collapsed .toggle-icon { transform: rotate(-90deg); }
+  .collapsible-body { padding: 18px; }
+  .collapsible-body.hidden { display: none; }
+
+  .settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+  .field-group { display: flex; flex-direction: column; gap: 4px; }
+  .field-group label { font-size: 12px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .field-group input[type="number"], .field-group textarea { border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; font-size: 13px; font-family: inherit; color: var(--text); background: #fafafa; transition: border-color 0.15s; width: 100%; }
+  .field-group input:focus, .field-group textarea:focus { outline: none; border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+  .field-group textarea { resize: vertical; min-height: 90px; font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; }
+  .settings-note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .settings-divider { grid-column: 1 / -1; border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+
+  /* UPLOAD */
+  .upload-area { border: 2px dashed var(--border); border-radius: var(--radius); padding: 40px 24px; text-align: center; transition: border-color 0.2s, background 0.2s; cursor: pointer; position: relative; }
+  .upload-area:hover, .upload-area.drag-over { border-color: var(--accent); background: var(--accent-light); }
+  .upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-area .upload-icon { margin-bottom: 12px; }
+  .upload-area .upload-icon svg { width: 40px; height: 40px; stroke: var(--muted); fill: none; stroke-width: 1.5; }
+  .upload-area p { color: var(--muted); font-size: 13px; }
+  .upload-area p strong { color: var(--text); }
+  .upload-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: center; flex-wrap: wrap; }
+
+  /* BUTTONS */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s; font-family: inherit; }
+  .btn:focus { outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.2); }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+  .btn-outline { background: #fff; color: var(--text); border-color: var(--border); }
+  .btn-outline:hover { background: var(--bg); border-color: #adb5bd; }
+  .btn-success { background: #16a34a; color: #fff; border-color: #16a34a; }
+  .btn-success:hover { background: #15803d; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* SUMMARY CARDS */
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; padding: 18px; }
+  .card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .card .card-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .card .card-value { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.2; }
+  .card .card-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .card.card-flagged { border-color: var(--high-border); background: var(--high-bg); }
+  .card.card-flagged .card-value { color: var(--high); }
+  .card.card-high { border-color: var(--high-border); background: var(--high-bg); }
+  .card.card-high .card-value { color: var(--high); }
+  .card.card-med { border-color: var(--med-border); background: var(--med-bg); }
+  .card.card-med .card-value { color: var(--med); }
+  .card.card-low { border-color: var(--low-border); background: var(--low-bg); }
+  .card.card-low .card-value { color: var(--low); }
+
+  /* RESULTS */
+  .results-header { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border); }
+  .results-header h2 { font-size: 14px; font-weight: 600; }
+  .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .filter-btn { padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border); background: #fff; font-size: 12px; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s; }
+  .filter-btn:hover { background: var(--bg); }
+  .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f8f9fb; border-bottom: 2px solid var(--border); padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; cursor: pointer; user-select: none; position: sticky; top: 0; z-index: 1; }
+  th:hover { background: #f0f2f5; }
+  th .sort-arrow { margin-left: 4px; opacity: 0.4; }
+  th.sort-asc .sort-arrow::after { content: '↑'; opacity: 1; }
+  th.sort-desc .sort-arrow::after { content: '↓'; opacity: 1; }
+  th:not(.sort-asc):not(.sort-desc) .sort-arrow::after { content: '↕'; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr.row-high { background: var(--high-bg); }
+  tr.row-high:hover { background: #fee2e2; }
+  tr.row-med { background: var(--med-bg); }
+  tr.row-med:hover { background: #fde68a44; }
+  tr.row-low { background: var(--low-bg); }
+  tr.row-low:hover { background: #fef08a55; }
+  tr.row-clean:hover { background: #f8f9fb; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; white-space: nowrap; margin: 1px 2px 1px 0; }
+  .badge-high { background: var(--high-bg); color: var(--high); border: 1px solid var(--high-border); }
+  .badge-med { background: var(--med-bg); color: var(--med); border: 1px solid var(--med-border); }
+  .badge-low { background: var(--low-bg); color: var(--low); border: 1px solid var(--low-border); }
+  .badge-clean { background: var(--clean-bg); color: var(--clean); border: 1px solid #bbf7d0; }
+  .reason-list { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .reason-list li { list-style: none; padding-left: 12px; position: relative; }
+  .reason-list li::before { content: '•'; position: absolute; left: 0; color: var(--muted); }
+  .amount-col { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .no-data { text-align: center; padding: 48px; color: var(--muted); }
+
+  /* ERROR */
+  .error-banner { background: var(--high-bg); border: 1px solid var(--high-border); border-radius: var(--radius); padding: 14px 18px; color: var(--high); font-size: 13px; margin-bottom: 16px; display: none; }
+  .error-banner.visible { display: block; }
+
+  /* HIDDEN */
+  .hidden { display: none !important; }
+
+  @media (max-width: 640px) {
+    .container { padding: 12px; }
+    .cards-grid { grid-template-columns: repeat(2, 1fr); }
+    .results-header { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="logo">
+    <svg viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+  </div>
+  <div>
+    <h1>Expense Claim Auditor</h1>
+    <p>Automatically flag duplicate, over-limit, weekend/holiday and split claims against configurable policy rules.</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <div id="errorBanner" class="error-banner"></div>
+
+  <!-- SETTINGS -->
+  <section id="settingsSection">
+    <div class="section-header" id="settingsToggle">
+      <h2>
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        Policy Settings
+      </h2>
+      <span class="toggle-icon">▾</span>
+    </div>
+    <div class="collapsible-body" id="settingsBody">
+      <div class="settings-grid">
+        <div class="field-group"><label>Meals Limit (MYR)</label><input type="number" id="limMeals" value="100" min="0"></div>
+        <div class="field-group"><label>Travel Limit (MYR)</label><input type="number" id="limTravel" value="1500" min="0"></div>
+        <div class="field-group"><label>Accommodation Limit (MYR)</label><input type="number" id="limAccommodation" value="400" min="0"></div>
+        <div class="field-group"><label>Transport Limit (MYR)</label><input type="number" id="limTransport" value="150" min="0"></div>
+        <div class="field-group"><label>Office Supplies Limit (MYR)</label><input type="number" id="limOfficeSupplies" value="300" min="0"></div>
+        <div class="field-group"><label>Entertainment Limit (MYR)</label><input type="number" id="limEntertainment" value="500" min="0"></div>
+        <hr class="settings-divider">
+        <div class="field-group"><label>Approval Threshold (MYR)</label><input type="number" id="approvalThreshold" value="500" min="0"></div>
+        <div class="field-group" style="grid-column: span 2">
+          <label>Public Holidays (YYYY-MM-DD, one per line)</label>
+          <textarea id="publicHolidays">2026-01-01
+2026-05-01
+2026-08-31
+2026-09-16
+2026-12-25</textarea>
+          <span class="settings-note">⚠ Only fixed-date 2026 holidays are pre-filled. Add Thaipusam, Wesak, Hari Raya, Deepavali and state-specific holidays as needed.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- UPLOAD -->
+  <section>
+    <div style="padding:18px">
+      <div class="upload-area" id="uploadArea">
+        <input type="file" id="fileInput" accept=".csv">
+        <div class="upload-icon">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <p><strong>Drop a CSV file here</strong> or click to browse</p>
+        <p style="margin-top:4px;font-size:12px">Required columns: claim_id, employee_id, employee_name, claim_date, category, amount, merchant, description</p>
+      </div>
+      <div class="upload-actions">
+        <button class="btn btn-primary" id="loadSampleBtn">
+          <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3z" stroke-width="0" fill="none"/><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+          Load sample data
+        </button>
+        <button class="btn btn-outline" id="downloadSampleBtn">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Download sample CSV
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SUMMARY -->
+  <section id="summarySection" class="hidden">
+    <div class="section-header" style="cursor:default">
+      <h2>
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Audit Summary
+      </h2>
+    </div>
+    <div class="cards-grid" id="summaryCards"></div>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="resultsSection" class="hidden">
+    <div class="results-header">
+      <h2>Claims
+        <span id="rowCountBadge" style="font-size:12px;font-weight:400;color:var(--muted);margin-left:6px"></span>
+      </h2>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <div class="filter-bar" id="filterBar">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="flagged">Flagged only</button>
+          <button class="filter-btn" data-filter="DUPLICATE">Duplicate</button>
+          <button class="filter-btn" data-filter="OVER_LIMIT">Over Limit</button>
+          <button class="filter-btn" data-filter="WEEKEND_HOLIDAY">Weekend/Holiday</button>
+          <button class="filter-btn" data-filter="SPLIT_CLAIM">Split Claim</button>
+        </div>
+        <button class="btn btn-success btn-sm" id="exportBtn">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Export audit report
+        </button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th data-col="claim_id">Claim ID<span class="sort-arrow"></span></th>
+            <th data-col="employee_id">Emp ID<span class="sort-arrow"></span></th>
+            <th data-col="employee_name">Name<span class="sort-arrow"></span></th>
+            <th data-col="claim_date">Date<span class="sort-arrow"></span></th>
+            <th data-col="category">Category<span class="sort-arrow"></span></th>
+            <th data-col="amount" style="text-align:right">Amount (MYR)<span class="sort-arrow"></span></th>
+            <th data-col="merchant">Merchant<span class="sort-arrow"></span></th>
+            <th data-col="severity">Severity<span class="sort-arrow"></span></th>
+            <th data-col="flags">Flags</th>
+            <th data-col="reasons">Reasons</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// ─── SAMPLE DATA ──────────────────────────────────────────────────────────────
+const SAMPLE_CSV = `claim_id,employee_id,employee_name,claim_date,category,amount,merchant,description
+CL001,EMP002,Siti Nuraini,2026-09-07,Transport,85.00,Petronas,Fuel reimbursement for client site visit
+CL002,EMP002,Siti Nuraini,2026-09-08,Transport,85.00,Petronas,Fuel reimbursement for client site visit
+CL003,EMP003,Rajesh Kumar,2026-09-03,Meals,145.00,Nasi Kandar Pelita,Team lunch with department colleagues
+CL004,EMP001,Ahmad Razif,2026-09-12,Meals,55.00,Village Park Restaurant,Working lunch - Saturday
+CL005,EMP004,Michelle Tan,2026-09-16,Office Supplies,120.00,MPH Bookstores,Stationery and notebooks - Malaysia Day
+CL006,EMP005,Hafiz Zulkifli,2026-09-10,Meals,95.00,Nasi Kandar Pelita,Working lunch
+CL007,EMP005,Hafiz Zulkifli,2026-09-10,Office Supplies,220.00,MPH Bookstores,Printer cartridges and paper
+CL008,EMP005,Hafiz Zulkifli,2026-09-10,Entertainment,240.00,TGI Fridays,Client entertainment dinner
+CL009,EMP001,Ahmad Razif,2026-09-01,Transport,95.00,Grab,Airport transfer for client pickup
+CL010,EMP001,Ahmad Razif,2026-09-02,Meals,72.00,Village Park Restaurant,Team breakfast meeting
+CL011,EMP001,Ahmad Razif,2026-09-04,Office Supplies,185.00,Lotus's,Office supplies restock
+CL012,EMP001,Ahmad Razif,2026-09-09,Travel,850.00,AirAsia,Domestic flight to Penang for training
+CL013,EMP001,Ahmad Razif,2026-09-17,Accommodation,380.00,Berjaya Times Square Hotel,Overnight stay for product launch
+CL014,EMP002,Siti Nuraini,2026-09-02,Meals,48.00,Lotus's,Grocery run for office pantry
+CL015,EMP002,Siti Nuraini,2026-09-11,Office Supplies,260.00,MPH Bookstores,Reference books for compliance training
+CL016,EMP002,Siti Nuraini,2026-09-17,Entertainment,310.00,TGI Fridays,Client appreciation dinner
+CL017,EMP002,Siti Nuraini,2026-09-22,Transport,110.00,Grab,Ground transport to regional office
+CL018,EMP003,Rajesh Kumar,2026-09-01,Transport,130.00,Grab,Client site travel - KL Sentral to Cyberjaya
+CL019,EMP003,Rajesh Kumar,2026-09-09,Meals,88.00,Village Park Restaurant,Lunch with vendor representatives
+CL020,EMP003,Rajesh Kumar,2026-09-15,Office Supplies,195.00,Lotus's,Whiteboard markers and presentation materials
+CL021,EMP003,Rajesh Kumar,2026-09-23,Accommodation,355.00,Marriott KL,Overnight stay for compliance audit
+CL022,EMP003,Rajesh Kumar,2026-09-29,Meals,65.00,Nasi Kandar Pelita,Working lunch with internal team
+CL023,EMP004,Michelle Tan,2026-09-01,Meals,90.00,TGI Fridays,Onboarding lunch for new team member
+CL024,EMP004,Michelle Tan,2026-09-04,Transport,140.00,Grab,Travel to client headquarters - PJ
+CL025,EMP004,Michelle Tan,2026-09-14,Office Supplies,275.00,MPH Bookstores,HR policy binders and folders
+CL026,EMP004,Michelle Tan,2026-09-24,Entertainment,460.00,Berjaya Times Square Hotel,Year-end client networking dinner
+CL027,EMP004,Michelle Tan,2026-09-30,Meals,78.00,Village Park Restaurant,Team lunch - project wrap-up
+CL028,EMP005,Hafiz Zulkifli,2026-09-03,Transport,125.00,Grab,Travel to Putrajaya for government liaison
+CL029,EMP005,Hafiz Zulkifli,2026-09-18,Accommodation,390.00,Marriott KL,Two-night stay for regional conference
+CL030,EMP005,Hafiz Zulkifli,2026-09-25,Office Supplies,240.00,Lotus's,Desk accessories and cable management`;
+
+// ─── REQUIRED COLUMNS ─────────────────────────────────────────────────────────
+const REQUIRED_COLS = ['claim_id','employee_id','employee_name','claim_date','category','amount','merchant','description'];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let auditedRows = [];
+let sortCol = 'claim_date';
+let sortDir = 'asc';
+let activeFilter = 'all';
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function getPolicy() {
+  return {
+    limits: {
+      'Meals':           parseFloat(document.getElementById('limMeals').value) || 0,
+      'Travel':          parseFloat(document.getElementById('limTravel').value) || 0,
+      'Accommodation':   parseFloat(document.getElementById('limAccommodation').value) || 0,
+      'Transport':       parseFloat(document.getElementById('limTransport').value) || 0,
+      'Office Supplies': parseFloat(document.getElementById('limOfficeSupplies').value) || 0,
+      'Entertainment':   parseFloat(document.getElementById('limEntertainment').value) || 0,
+    },
+    threshold: parseFloat(document.getElementById('approvalThreshold').value) || 500,
+    holidays: new Set(
+      document.getElementById('publicHolidays').value
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s))
+    )
+  };
+}
+
+function parseDateLocal(str) {
+  // Parse YYYY-MM-DD as local date (avoid UTC shift)
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str);
+  if (!m) return null;
+  return new Date(parseInt(m[1]), parseInt(m[2])-1, parseInt(m[3]));
+}
+
+function formatMYR(n) {
+  return 'MYR ' + n.toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function daysBetween(a, b) {
+  return Math.abs((a - b) / 86400000);
+}
+
+function severityRank(s) {
+  return s === 'High' ? 3 : s === 'Medium' ? 2 : s === 'Low' ? 1 : 0;
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorBanner');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+function clearError() {
+  document.getElementById('errorBanner').classList.remove('visible');
+}
+
+// ─── AUDIT ENGINE ─────────────────────────────────────────────────────────────
+function runAudit(rows) {
+  const policy = getPolicy();
+
+  // Initialise flags map: claim_id → [{type, severity, reason}]
+  const flagsMap = {};
+  rows.forEach(r => { flagsMap[r.claim_id] = []; });
+
+  // ── Rule 1: DUPLICATE ──────────────────────────────────────────────────────
+  // Same employee_id, same amount, same merchant, claim_date within 3 days
+  for (let i = 0; i < rows.length; i++) {
+    for (let j = 0; j < i; j++) {
+      const a = rows[j], b = rows[i];
+      if (a.employee_id !== b.employee_id) continue;
+      if (Math.abs(a.amount - b.amount) > 0.001) continue;
+      if (a.merchant.trim().toLowerCase() !== b.merchant.trim().toLowerCase()) continue;
+      if (daysBetween(a._date, b._date) <= 3) {
+        // Flag the later one (higher index = later in original order; use date comparison)
+        const later = a._date <= b._date ? b : a;
+        const earlier = later === b ? a : b;
+        flagsMap[later.claim_id].push({
+          type: 'DUPLICATE',
+          severity: 'High',
+          reason: `Possible duplicate of ${earlier.claim_id} (same employee, merchant "${a.merchant}", amount ${formatMYR(a.amount)}, ${Math.round(daysBetween(a._date,b._date))} day(s) apart).`
+        });
+      }
+    }
+  }
+
+  // ── Rule 2: OVER_LIMIT ────────────────────────────────────────────────────
+  rows.forEach(r => {
+    const limit = policy.limits[r.category];
+    if (limit !== undefined && r.amount > limit) {
+      const excess = r.amount - limit;
+      flagsMap[r.claim_id].push({
+        type: 'OVER_LIMIT',
+        severity: 'Medium',
+        reason: `Amount ${formatMYR(r.amount)} exceeds category limit of ${formatMYR(limit)} for ${r.category} (excess: ${formatMYR(excess)}).`
+      });
+    }
+  });
+
+  // ── Rule 3: WEEKEND_HOLIDAY ───────────────────────────────────────────────
+  const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  rows.forEach(r => {
+    const d = r._date;
+    const dow = d.getDay(); // 0=Sun, 6=Sat
+    const dateStr = r.claim_date;
+    if (dow === 0 || dow === 6) {
+      flagsMap[r.claim_id].push({
+        type: 'WEEKEND_HOLIDAY',
+        severity: 'Low',
+        reason: `Claim date ${dateStr} falls on a ${DAY_NAMES[dow]}.`
+      });
+    } else if (policy.holidays.has(dateStr)) {
+      flagsMap[r.claim_id].push({
+        type: 'WEEKEND_HOLIDAY',
+        severity: 'Low',
+        reason: `Claim date ${dateStr} is a public holiday.`
+      });
+    }
+  });
+
+  // ── Rule 4: SPLIT_CLAIM ───────────────────────────────────────────────────
+  // Same employee, same day, 2+ claims each < threshold, combined >= threshold
+  const dayGroups = {}; // key: employee_id|YYYY-MM-DD → [rows]
+  rows.forEach(r => {
+    const key = `${r.employee_id}|${r.claim_date}`;
+    if (!dayGroups[key]) dayGroups[key] = [];
+    dayGroups[key].push(r);
+  });
+  Object.values(dayGroups).forEach(group => {
+    if (group.length < 2) return;
+    const belowThreshold = group.filter(r => r.amount < policy.threshold);
+    if (belowThreshold.length < 2) return;
+    const combinedTotal = belowThreshold.reduce((s, r) => s + r.amount, 0);
+    if (combinedTotal >= policy.threshold) {
+      belowThreshold.forEach(r => {
+        flagsMap[r.claim_id].push({
+          type: 'SPLIT_CLAIM',
+          severity: 'High',
+          reason: `Part of a potential split claim: ${belowThreshold.length} claims by ${r.employee_id} on ${r.claim_date}, each below the approval threshold of ${formatMYR(policy.threshold)}, with a combined total of ${formatMYR(combinedTotal)}.`
+        });
+      });
+    }
+  });
+
+  // Build audited rows
+  return rows.map(r => {
+    const flags = flagsMap[r.claim_id];
+    const severity = flags.reduce((best, f) => {
+      return severityRank(f.severity) > severityRank(best) ? f.severity : best;
+    }, 'Clean');
+    return { ...r, flags, severity };
+  });
+}
+
+// ─── PARSE & VALIDATE CSV ────────────────────────────────────────────────────
+function processCSV(csvText) {
+  clearError();
+  let parsed;
+  try {
+    parsed = Papa.parse(csvText.trim(), { header: true, skipEmptyLines: true });
+  } catch(e) {
+    showError('Failed to parse CSV: ' + e.message);
+    return;
+  }
+
+  if (parsed.errors && parsed.errors.length > 0) {
+    const errs = parsed.errors.slice(0,3).map(e => `Row ${e.row}: ${e.message}`).join('; ');
+    showError('CSV parse errors: ' + errs);
+    return;
+  }
+
+  const data = parsed.data;
+  if (!data || data.length === 0) {
+    showError('The CSV file is empty or has no data rows.');
+    return;
+  }
+
+  // Normalise column names (trim whitespace)
+  const normData = data.map(row => {
+    const nr = {};
+    Object.keys(row).forEach(k => { nr[k.trim()] = (row[k] || '').trim(); });
+    return nr;
+  });
+
+  // Check required columns
+  const firstRow = normData[0];
+  const missing = REQUIRED_COLS.filter(c => !(c in firstRow));
+  if (missing.length > 0) {
+    showError(`Missing required column(s): ${missing.join(', ')}. Found: ${Object.keys(firstRow).join(', ')}`);
+    return;
+  }
+
+  // Parse and validate rows
+  const rows = [];
+  const rowErrors = [];
+  normData.forEach((row, idx) => {
+    const rowNum = idx + 2; // +2 for 1-based and header
+    const amount = parseFloat(row.amount);
+    if (isNaN(amount)) {
+      rowErrors.push(`Row ${rowNum} (${row.claim_id || '?'}): invalid amount "${row.amount}"`);
+      return;
+    }
+    const date = parseDateLocal(row.claim_date);
+    if (!date) {
+      rowErrors.push(`Row ${rowNum} (${row.claim_id || '?'}): invalid date "${row.claim_date}" (expected YYYY-MM-DD)`);
+      return;
+    }
+    if (!row.claim_id) {
+      rowErrors.push(`Row ${rowNum}: missing claim_id`);
+      return;
+    }
+    rows.push({ ...row, amount, _date: date });
+  });
+
+  if (rowErrors.length > 0) {
+    showError('Data errors (skipped rows): ' + rowErrors.slice(0,5).join(' | ') + (rowErrors.length > 5 ? ` … and ${rowErrors.length-5} more.` : ''));
+  }
+
+  if (rows.length === 0) {
+    showError('No valid data rows found after validation.');
+    return;
+  }
+
+  auditedRows = runAudit(rows);
+  renderResults();
+}
+
+// ─── RE-RUN AUDIT ─────────────────────────────────────────────────────────────
+function rerunAudit() {
+  if (auditedRows.length === 0) return;
+  // Extract original rows (without audit fields)
+  const origRows = auditedRows.map(r => {
+    const { flags, severity, ...orig } = r;
+    return orig;
+  });
+  auditedRows = runAudit(origRows);
+  renderResults();
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function renderResults() {
+  document.getElementById('summarySection').classList.remove('hidden');
+  document.getElementById('resultsSection').classList.remove('hidden');
+  renderSummary();
+  renderTable();
+}
+
+function renderSummary() {
+  const total = auditedRows.length;
+  const totalAmt = auditedRows.reduce((s,r) => s+r.amount, 0);
+  const flagged = auditedRows.filter(r => r.flags.length > 0);
+  const flaggedAmt = flagged.reduce((s,r) => s+r.amount, 0);
+
+  const countByType = {DUPLICATE:0, OVER_LIMIT:0, WEEKEND_HOLIDAY:0, SPLIT_CLAIM:0};
+  auditedRows.forEach(r => r.flags.forEach(f => countByType[f.type]++));
+
+  const cards = document.getElementById('summaryCards');
+  cards.innerHTML = `
+    <div class="card">
+      <div class="card-label">Total Claims</div>
+      <div class="card-value">${total}</div>
+      <div class="card-sub">${formatMYR(totalAmt)}</div>
+    </div>
+    <div class="card ${flagged.length > 0 ? 'card-flagged' : ''}">
+      <div class="card-label">Flagged Claims</div>
+      <div class="card-value">${flagged.length}</div>
+      <div class="card-sub">${formatMYR(flaggedAmt)}</div>
+    </div>
+    <div class="card card-high">
+      <div class="card-label">Duplicate</div>
+      <div class="card-value">${countByType.DUPLICATE}</div>
+      <div class="card-sub">flags</div>
+    </div>
+    <div class="card card-med">
+      <div class="card-label">Over Limit</div>
+      <div class="card-value">${countByType.OVER_LIMIT}</div>
+      <div class="card-sub">flags</div>
+    </div>
+    <div class="card card-low">
+      <div class="card-label">Weekend/Holiday</div>
+      <div class="card-value">${countByType.WEEKEND_HOLIDAY}</div>
+      <div class="card-sub">flags</div>
+    </div>
+    <div class="card card-high">
+      <div class="card-label">Split Claim</div>
+      <div class="card-value">${countByType.SPLIT_CLAIM}</div>
+      <div class="card-sub">flags</div>
+    </div>
+  `;
+}
+
+function getFilteredRows() {
+  return auditedRows.filter(r => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'flagged') return r.flags.length > 0;
+    return r.flags.some(f => f.type === activeFilter);
+  });
+}
+
+function getSortedRows(rows) {
+  return [...rows].sort((a, b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if (sortCol === 'amount') { va = a.amount; vb = b.amount; }
+    if (sortCol === 'severity') { va = severityRank(a.severity); vb = severityRank(b.severity); }
+    if (sortCol === 'claim_date') { va = a._date; vb = b._date; }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
+function renderTable() {
+  const filtered = getFilteredRows();
+  const sorted = getSortedRows(filtered);
+
+  document.getElementById('rowCountBadge').textContent = `${sorted.length} of ${auditedRows.length} rows`;
+
+  const tbody = document.getElementById('resultsBody');
+  if (sorted.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="no-data">No claims match the current filter.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = sorted.map(r => {
+    const rowClass = r.severity === 'High' ? 'row-high' : r.severity === 'Medium' ? 'row-med' : r.severity === 'Low' ? 'row-low' : 'row-clean';
+    const sevBadge = r.severity === 'Clean'
+      ? '<span class="badge badge-clean">Clean</span>'
+      : r.severity === 'High'
+        ? '<span class="badge badge-high">High</span>'
+        : r.severity === 'Medium'
+          ? '<span class="badge badge-med">Medium</span>'
+          : '<span class="badge badge-low">Low</span>';
+    const flagBadges = r.flags.length === 0
+      ? '—'
+      : r.flags.map(f => {
+          const cls = f.severity === 'High' ? 'badge-high' : f.severity === 'Medium' ? 'badge-med' : 'badge-low';
+          const label = f.type === 'WEEKEND_HOLIDAY' ? 'WKND/HOL' : f.type.replace('_',' ');
+          return `<span class="badge ${cls}">${label}</span>`;
+        }).join('');
+    const reasons = r.flags.length === 0
+      ? '<span style="color:var(--muted)">—</span>'
+      : `<ul class="reason-list">${r.flags.map(f => `<li>${escHtml(f.reason)}</li>`).join('')}</ul>`;
+
+    return `<tr class="${rowClass}">
+      <td><strong>${escHtml(r.claim_id)}</strong></td>
+      <td>${escHtml(r.employee_id)}</td>
+      <td>${escHtml(r.employee_name)}</td>
+      <td style="white-space:nowrap">${escHtml(r.claim_date)}</td>
+      <td>${escHtml(r.category)}</td>
+      <td class="amount-col" style="text-align:right">${formatMYR(r.amount)}</td>
+      <td>${escHtml(r.merchant)}</td>
+      <td style="white-space:nowrap">${sevBadge}</td>
+      <td style="white-space:nowrap">${flagBadges}</td>
+      <td style="min-width:260px">${reasons}</td>
+    </tr>`;
+  }).join('');
+
+  // Update sort arrow indicators
+  document.querySelectorAll('#resultsTable th').forEach(th => {
+    th.classList.remove('sort-asc','sort-desc');
+    if (th.dataset.col === sortCol) th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+  });
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── EXPORT ───────────────────────────────────────────────────────────────────
+function exportReport() {
+  const flagged = auditedRows.filter(r => r.flags.length > 0);
+  if (flagged.length === 0) { alert('No flagged claims to export.'); return; }
+
+  const rows = [['claim_id','employee_name','claim_date','category','amount','flags','severity','reasons']];
+  flagged.forEach(r => {
+    rows.push([
+      r.claim_id,
+      r.employee_name,
+      r.claim_date,
+      r.category,
+      r.amount.toFixed(2),
+      r.flags.map(f=>f.type).join('; '),
+      r.severity,
+      r.flags.map(f=>f.reason).join(' | ')
+    ]);
+  });
+
+  const csv = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  downloadString(csv, 'expense-audit-report.csv', 'text/csv');
+}
+
+function downloadString(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── EVENT LISTENERS ──────────────────────────────────────────────────────────
+
+// Settings toggle
+document.getElementById('settingsToggle').addEventListener('click', () => {
+  const body = document.getElementById('settingsBody');
+  const hdr = document.getElementById('settingsToggle');
+  const isHidden = body.classList.toggle('hidden');
+  hdr.classList.toggle('collapsed', isHidden);
+});
+
+// Auto re-run on settings change
+document.querySelectorAll('#settingsBody input, #settingsBody textarea').forEach(el => {
+  el.addEventListener('input', () => rerunAudit());
+});
+
+// File upload
+const fileInput = document.getElementById('fileInput');
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => processCSV(ev.target.result);
+  reader.readAsText(file);
+  fileInput.value = '';
+});
+
+// Drag and drop
+const uploadArea = document.getElementById('uploadArea');
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => processCSV(ev.target.result);
+  reader.readAsText(file);
+});
+
+// Load sample
+document.getElementById('loadSampleBtn').addEventListener('click', () => processCSV(SAMPLE_CSV));
+
+// Download sample
+document.getElementById('downloadSampleBtn').addEventListener('click', () => {
+  downloadString(SAMPLE_CSV, 'expense-claims-sample.csv', 'text/csv');
+});
+
+// Export report
+document.getElementById('exportBtn').addEventListener('click', exportReport);
+
+// Filter buttons
+document.getElementById('filterBar').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  activeFilter = btn.dataset.filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+});
+
+// Sort
+document.querySelectorAll('#resultsTable th[data-col]').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (col === 'flags' || col === 'reasons') return;
+    if (sortCol === col) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortCol = col;
+      sortDir = 'asc';
+    }
+    renderTable();
+  });
+});
+</script>
+</body>
+</html>

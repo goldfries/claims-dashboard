@@ -1,0 +1,31 @@
+claim_id,employee_id,employee_name,claim_date,category,amount,merchant,description
+CL001,EMP002,Siti Nuraini,2026-09-07,Transport,85.00,Petronas,Fuel reimbursement for client site visit
+CL002,EMP002,Siti Nuraini,2026-09-08,Transport,85.00,Petronas,Fuel reimbursement for client site visit
+CL003,EMP003,Rajesh Kumar,2026-09-03,Meals,145.00,Nasi Kandar Pelita,Team lunch with department colleagues
+CL004,EMP001,Ahmad Razif,2026-09-12,Meals,55.00,Village Park Restaurant,Working lunch - Saturday
+CL005,EMP004,Michelle Tan,2026-09-16,Office Supplies,120.00,MPH Bookstores,Stationery and notebooks - Malaysia Day
+CL006,EMP005,Hafiz Zulkifli,2026-09-10,Meals,95.00,Nasi Kandar Pelita,Working lunch
+CL007,EMP005,Hafiz Zulkifli,2026-09-10,Office Supplies,220.00,MPH Bookstores,Printer cartridges and paper
+CL008,EMP005,Hafiz Zulkifli,2026-09-10,Entertainment,240.00,TGI Fridays,Client entertainment dinner
+CL009,EMP001,Ahmad Razif,2026-09-01,Transport,95.00,Grab,Airport transfer for client pickup
+CL010,EMP001,Ahmad Razif,2026-09-02,Meals,72.00,Village Park Restaurant,Team breakfast meeting
+CL011,EMP001,Ahmad Razif,2026-09-04,Office Supplies,185.00,Lotus's,Office supplies restock
+CL012,EMP001,Ahmad Razif,2026-09-09,Travel,850.00,AirAsia,Domestic flight to Penang for training
+CL013,EMP001,Ahmad Razif,2026-09-17,Accommodation,380.00,Berjaya Times Square Hotel,Overnight stay for product launch
+CL014,EMP002,Siti Nuraini,2026-09-02,Meals,48.00,Lotus's,Grocery run for office pantry
+CL015,EMP002,Siti Nuraini,2026-09-11,Office Supplies,260.00,MPH Bookstores,Reference books for compliance training
+CL016,EMP002,Siti Nuraini,2026-09-17,Entertainment,310.00,TGI Fridays,Client appreciation dinner
+CL017,EMP002,Siti Nuraini,2026-09-22,Transport,110.00,Grab,Ground transport to regional office
+CL018,EMP003,Rajesh Kumar,2026-09-01,Transport,130.00,Grab,Client site travel - KL Sentral to Cyberjaya
+CL019,EMP003,Rajesh Kumar,2026-09-09,Meals,88.00,Village Park Restaurant,Lunch with vendor representatives
+CL020,EMP003,Rajesh Kumar,2026-09-15,Office Supplies,195.00,Lotus's,Whiteboard markers and presentation materials
+CL021,EMP003,Rajesh Kumar,2026-09-23,Accommodation,355.00,Marriott KL,Overnight stay for compliance audit
+CL022,EMP003,Rajesh Kumar,2026-09-29,Meals,65.00,Nasi Kandar Pelita,Working lunch with internal team
+CL023,EMP004,Michelle Tan,2026-09-01,Meals,90.00,TGI Fridays,Onboarding lunch for new team member
+CL024,EMP004,Michelle Tan,2026-09-04,Transport,140.00,Grab,Travel to client headquarters - PJ
+CL025,EMP004,Michelle Tan,2026-09-14,Office Supplies,275.00,MPH Bookstores,HR policy binders and folders
+CL026,EMP004,Michelle Tan,2026-09-24,Entertainment,460.00,Berjaya Times Square Hotel,Year-end client networking dinner
+CL027,EMP004,Michelle Tan,2026-09-30,Meals,78.00,Village Park Restaurant,Team lunch - project wrap-up
+CL028,EMP005,Hafiz Zulkifli,2026-09-03,Transport,125.00,Grab,Travel to Putrajaya for government liaison
+CL029,EMP005,Hafiz Zulkifli,2026-09-18,Accommodation,390.00,Marriott KL,Two-night stay for regional conference
+CL030,EMP005,Hafiz Zulkifli,2026-09-25,Office Supplies,240.00,Lotus's,Desk accessories and cable management
